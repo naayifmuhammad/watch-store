@@ -1,3 +1,4 @@
+// routes/customer.js
 const express = require('express');
 const router = express.Router();
 const CustomerController = require('../controllers/customerController');
@@ -8,11 +9,15 @@ const { updateProfileSchema } = require('../utils/validation');
 // All routes require customer authentication
 router.use(authenticateCustomer);
 
-// Profile routes
+// Customer profile routes
 router.get('/profile', CustomerController.getProfile);
-router.patch('/profile', validate(updateProfileSchema), CustomerController.updateProfile);
+router.patch(
+  '/profile',
+  validate(updateProfileSchema),
+  CustomerController.updateProfile
+);
 
-// Categories
-router.get('/categories', CustomerController.getCategories);
+// Geocoding route
+router.get('/geocode', CustomerController.reverseGeocode);
 
 module.exports = router;

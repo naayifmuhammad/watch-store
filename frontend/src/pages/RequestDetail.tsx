@@ -39,7 +39,7 @@ const RequestDetail = () => {
   const fetchRequestDetail = async (token: string) => {
     try {
       // Note: In real implementation, you'd use a customer-specific endpoint
-      const response = await fetch(`${API_BASE}/customer/service-requests`, {
+      const response = await fetch(`${API_BASE}/service-requests`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -65,7 +65,7 @@ const RequestDetail = () => {
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_BASE}/customer/service-requests/${id}/accept-quote`, {
+      const response = await fetch(`${API_BASE}/service-requests/${id}/accept-quote`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -88,7 +88,7 @@ const RequestDetail = () => {
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_BASE}/customer/service-requests/${id}/cancel`, {
+      const response = await fetch(`${API_BASE}/service-requests/${id}/cancel`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });

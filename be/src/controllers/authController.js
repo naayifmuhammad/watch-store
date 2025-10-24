@@ -3,82 +3,50 @@ const OTPService = require('../services/otpService');
 const smsService = require('../services/smsService');
 const { generateToken } = require('../utils/jwt');
 const { ROLES, OTP_PURPOSES } = require('../utils/constants');
-const logger = require('../middlewares/logger');
 
 class AuthController {
   // Customer: Request OTP
   static async customerRequestOTP(req, res, next) {
     try {
       const { phone } = req.body;
-      
+
       const { code } = await OTPService.createOTPSession(
         phone,
         OTP_PURPOSES.CUSTOMER_LOGIN
       );
-      
-      // Send OTP via SMS
+
       await smsService.sendOTP(phone, code);
-      
+
       res.json({ ok: true });
     } catch (error) {
       next(error);
     }
   }
-  
-  // Customer: Verify OTP
+
+  // Customer: Verify OTP (check if existing or new user)
   static async customerVerifyOTP(req, res, next) {
     try {
-      const { phone, code, name, email, default_address, lat, lon } = req.body;
-      
+      const { phone, code } = req.body;
+
       // Verify OTP
       await OTPService.verifyOTP(phone, code, OTP_PURPOSES.CUSTOMER_LOGIN);
-      
+
       // Check if customer exists
-      let customer = await Database.queryOne(
+      const customer = await Database.queryOne(
         'SELECT * FROM customers WHERE phone = ?',
         [phone]
       );
-      
-      // Create customer if first login
+
       if (!customer) {
-        const customerId = await Database.insert('customers', {
-          phone,
-          name: name || null,
-          email: email || null,
-          default_address: default_address || null,
-          latitude: lat || null,
-          longitude: lon || null,
-          created_at: new Date(),
-          updated_at: new Date()
+        // First-time user
+        return res.json({
+          success: true,
+          is_new_user: true,
+          message: 'OTP verified. First-time user. Please complete registration.'
         });
-        
-        customer = await Database.queryOne(
-          'SELECT * FROM customers WHERE id = ?',
-          [customerId]
-        );
-      } else if (name || email || default_address || lat || lon) {
-        // Update profile if data provided
-        await Database.update(
-          'customers',
-          {
-            name: name || customer.name,
-            email: email || customer.email,
-            default_address: default_address || customer.default_address,
-            latitude: lat || customer.latitude,
-            longitude: lon || customer.longitude,
-            updated_at: new Date()
-          },
-          'id = ?',
-          [customer.id]
-        );
-        
-        customer = await Database.queryOne(
-          'SELECT * FROM customers WHERE id = ?',
-          [customer.id]
-        );
       }
-      
-      // Generate JWT
+
+      // Existing user → generate token
       const token = generateToken(
         {
           sub: customer.id,
@@ -87,8 +55,10 @@ class AuthController {
         },
         ROLES.CUSTOMER
       );
-      
+
       res.json({
+        success: true,
+        is_new_user: false,
         token,
         customer: {
           id: customer.id,
@@ -101,18 +71,79 @@ class AuthController {
       next(error);
     }
   }
-  
+
+  // Customer: Register new user after verifying OTP
+  static async customerRegister(req, res, next) {
+    try {
+      const { phone, name, email, default_address, lat, lon } = req.body;
+
+      // Check if user already exists
+      let existing = await Database.queryOne(
+        'SELECT * FROM customers WHERE phone = ?',
+        [phone]
+      );
+
+      if (existing) {
+        return res.status(400).json({
+          error: {
+            code: 'USER_EXISTS',
+            message: 'Customer already registered.'
+          }
+        });
+      }
+
+      // Create new customer
+      const customerId = await Database.insert('customers', {
+        phone,
+        name: name || null,
+        email: email || null,
+        default_address: default_address || null,
+        latitude: lat || null,
+        longitude: lon || null,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+
+      const customer = await Database.queryOne(
+        'SELECT * FROM customers WHERE id = ?',
+        [customerId]
+      );
+
+      // Generate JWT after registration
+      const token = generateToken(
+        {
+          sub: customer.id,
+          role: ROLES.CUSTOMER,
+          phone: customer.phone
+        },
+        ROLES.CUSTOMER
+      );
+
+      res.json({
+        success: true,
+        token,
+        customer: {
+          id: customer.id,
+          phone: customer.phone,
+          name: customer.name,
+          email: customer.email
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Delivery: Request OTP
   static async deliveryRequestOTP(req, res, next) {
     try {
       const { phone } = req.body;
-      
-      // Check if delivery person exists
+
       const deliveryPerson = await Database.queryOne(
         'SELECT * FROM delivery_personnel WHERE phone = ? AND active = 1',
         [phone]
       );
-      
+
       if (!deliveryPerson) {
         return res.status(403).json({
           error: {
@@ -121,35 +152,32 @@ class AuthController {
           }
         });
       }
-      
+
       const { code } = await OTPService.createOTPSession(
         phone,
         OTP_PURPOSES.DELIVERY_LOGIN
       );
-      
-      // Send OTP via SMS
+
       await smsService.sendOTP(phone, code);
-      
+
       res.json({ ok: true });
     } catch (error) {
       next(error);
     }
   }
-  
+
   // Delivery: Verify OTP
   static async deliveryVerifyOTP(req, res, next) {
     try {
       const { phone, code } = req.body;
-      
-      // Verify OTP
+
       await OTPService.verifyOTP(phone, code, OTP_PURPOSES.DELIVERY_LOGIN);
-      
-      // Get delivery person
+
       const deliveryPerson = await Database.queryOne(
         'SELECT * FROM delivery_personnel WHERE phone = ? AND active = 1',
         [phone]
       );
-      
+
       if (!deliveryPerson) {
         return res.status(403).json({
           error: {
@@ -158,8 +186,7 @@ class AuthController {
           }
         });
       }
-      
-      // Generate JWT
+
       const token = generateToken(
         {
           sub: deliveryPerson.id,
@@ -168,8 +195,9 @@ class AuthController {
         },
         ROLES.DELIVERY
       );
-      
+
       res.json({
+        success: true,
         token,
         delivery: {
           id: deliveryPerson.id,

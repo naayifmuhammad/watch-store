@@ -36,30 +36,64 @@ const verifyOtpDeliverySchema = Joi.object({
   code: otpSchema
 });
 
-// Service request item schema
+// Service request item schema (old but better  - implement this later)
+
+// const serviceItemSchema = Joi.object({
+//   category: Joi.string()
+//     .valid('watch', 'clock', 'timepiece', 'smart_wearable', 'custom')
+//     .required(),
+//   title: Joi.string().max(255).optional(),
+//   problem_description: Joi.string().optional()
+// });
+
+// // Create service request schema
+// const createServiceRequestSchema = Joi.object({
+//   categories: Joi.array()
+//     .items(Joi.string().valid('watch', 'clock', 'timepiece', 'smart_wearable', 'custom'))
+//     .min(1)
+//     .required(),
+//   items: Joi.array().items(serviceItemSchema).min(1).required(),
+//   description: Joi.string().required(),
+//   images: Joi.array().items(Joi.string()).optional(),
+//   videos: Joi.array().items(Joi.string()).optional(),
+//   voice_note: Joi.string().optional(),
+//   address_manual: Joi.string().required(),
+//   gps_lat: Joi.number().min(-90).max(90).optional(),
+//   gps_lon: Joi.number().min(-180).max(180).optional()
+// });
+
+// Single service request item
 const serviceItemSchema = Joi.object({
   category: Joi.string()
     .valid('watch', 'clock', 'timepiece', 'smart_wearable', 'custom')
-    .required(),
-  title: Joi.string().max(255).optional(),
-  problem_description: Joi.string().optional()
+    .required()
+    .messages({
+      'any.only': 'Category must be one of: watch, clock, timepiece, smart_wearable, custom',
+      'string.empty': 'Category is required',
+    }),
+  title: Joi.string().max(255).optional().allow('', null),
+  description: Joi.string().max(1000).optional().allow('', null),
 });
 
-// Create service request schema
+// Create new service request
 const createServiceRequestSchema = Joi.object({
-  categories: Joi.array()
-    .items(Joi.string().valid('watch', 'clock', 'timepiece', 'smart_wearable', 'custom'))
-    .min(1)
-    .required(),
-  items: Joi.array().items(serviceItemSchema).min(1).required(),
-  description: Joi.string().required(),
-  images: Joi.array().items(Joi.string()).optional(),
-  videos: Joi.array().items(Joi.string()).optional(),
-  voice_note: Joi.string().optional(),
-  address_manual: Joi.string().required(),
-  gps_lat: Joi.number().min(-90).max(90).optional(),
-  gps_lon: Joi.number().min(-180).max(180).optional()
+  items: Joi.array().items(serviceItemSchema).min(1).required().messages({
+    'array.min': 'At least one service item is required',
+  }),
+  shop_id: Joi.number().integer().optional(), // Made optional, will use default
+  media_ids: Joi.array().items(Joi.number().integer()).optional(),
+  address_manual: Joi.string().required().messages({
+    'string.empty': 'Address is required',
+  }),
+  gps_lat: Joi.number().min(-90).max(90).optional().allow(null),
+  gps_lon: Joi.number().min(-180).max(180).optional().allow(null),
 });
+
+
+module.exports = {
+  createServiceRequestSchema,
+};
+
 
 // Send quote schema
 const sendQuoteSchema = Joi.object({
@@ -88,10 +122,9 @@ const presignMediaSchema = Joi.object({
   request_id: Joi.number().integer().optional()
 });
 
-// Register media schema
+// Update registerMediaSchema to make request_id optional
 const registerMediaSchema = Joi.object({
   s3_key: Joi.string().required(),
-  request_id: Joi.number().integer().required(),
   type: Joi.string().valid('image', 'video', 'voice').required(),
   original_filename: Joi.string().max(255).required(),
   size_bytes: Joi.number().integer().max(104857600).required(), // 100MB

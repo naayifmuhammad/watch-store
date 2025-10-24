@@ -1,3 +1,4 @@
+// controllers/serviceRequestController.js
 const Database = require('../models/db');
 const GeocodingService = require('../services/geocodingService');
 const S3Service = require('../services/s3Service');
@@ -6,102 +7,192 @@ const { SERVICE_REQUEST_STATUS } = require('../utils/constants');
 const logger = require('../middlewares/logger');
 
 class ServiceRequestController {
-    // Create service request (customer)
-    static async create(req, res, next) {
-        try {
-            const customerId = req.user.id;
-            const {
-                categories,
-                items,
-                description,
-                images,
-                videos,
-                voice_note,
-                address_manual,
-                gps_lat,
-                gps_lon
-            } = req.body;
+  // Create service request (customer)
+  static async create(req, res, next) {
+    let connection; // CHANGE 1: Declare outside try block
+    
+    try {
+      connection = await Database.getConnection();
+      await connection.beginTransaction();
+      
+      const customerId = req.user.id;
+      const {
+        items,
+        media_ids,
+        address_manual,
+        gps_lat,
+        gps_lon
+      } = req.body;
 
-            // Get default shop (for now, first shop)
-            const shop = await Database.queryOne('SELECT id FROM shops LIMIT 1');
+      logger.info('Creating service request', { customerId, items, media_ids }); // CHANGE 2: Add logging
 
-            if (!shop) {
-                return res.status(500).json({
-                    error: {
-                        code: 'NO_SHOP',
-                        message: 'No shop configured'
-                    }
-                });
-            }
+      // Validate required fields
+      if (!address_manual) {
+        await connection.rollback();
+        return res.status(400).json({
+          error: {
+            code: 'MISSING_ADDRESS',
+            message: 'Address is required'
+          }
+        });
+      }
 
-            // Reverse geocode if GPS provided
-            let geocodedAddress = null;
-            if (gps_lat && gps_lon) {
-                geocodedAddress = await GeocodingService.getAddressFromCoordinates(gps_lat, gps_lon);
-            }
+      if (!items || items.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          error: {
+            code: 'NO_ITEMS',
+            message: 'At least one service item is required'
+          }
+        });
+      }
 
-            // Create service request
-            const requestId = await Database.insert('service_requests', {
-                shop_id: shop.id,
-                customer_id: customerId,
-                status: SERVICE_REQUEST_STATUS.REQUESTED,
-                description,
-                gps_lat: gps_lat || null,
-                gps_lon: gps_lon || null,
-                address_manual,
-                created_at: new Date(),
-                updated_at: new Date()
+      // CHANGE 3: Fix shop query to work with connection
+      const [shops] = await connection.query('SELECT id FROM shops LIMIT 1');
+      const shop = shops[0];
+      
+      if (!shop) {
+        await connection.rollback();
+        return res.status(500).json({
+          error: {
+            code: 'NO_SHOP',
+            message: 'No shop configured'
+          }
+        });
+      }
+
+      // Create service request
+      const [requestResult] = await connection.query(
+        `INSERT INTO service_requests (
+          shop_id, 
+          customer_id, 
+          status, 
+          description,
+          address_manual,
+          gps_lat, 
+          gps_lon, 
+          created_at, 
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          shop.id,
+          customerId,
+          SERVICE_REQUEST_STATUS.REQUESTED,
+          null, // Optional description at request level
+          address_manual,
+          gps_lat || null,
+          gps_lon || null
+        ]
+      );
+
+      const requestId = requestResult.insertId;
+      logger.info('Service request created', { requestId }); // CHANGE 4: Add logging
+
+      // Create service items
+      for (const item of items) {
+        await connection.query(
+          `INSERT INTO service_items (
+            request_id, 
+            category, 
+            title, 
+            problem_description, 
+            created_at, 
+            updated_at
+          ) VALUES (?, ?, ?, ?, NOW(), NOW())`,
+          [
+            requestId,
+            item.category,
+            item.title || null,
+            item.description || null
+          ]
+        );
+      }
+      logger.info('Service items created', { count: items.length }); // CHANGE 5: Add logging
+
+      // Link media to this request
+      if (media_ids && media_ids.length > 0) {
+        for (const mediaId of media_ids) {
+          // CHANGE 6: Fix media query result destructuring
+          const [mediaRows] = await connection.query(
+            'SELECT * FROM media WHERE id = ? AND uploader_type = ?',
+            [mediaId, 'customer']
+          );
+
+          if (mediaRows.length === 0) { // CHANGE 7: Check mediaRows.length
+            logger.warn('Media not found', { mediaId }); // CHANGE 8: Add logging
+            await connection.rollback();
+            return res.status(400).json({
+              error: {
+                code: 'INVALID_MEDIA',
+                message: `Media ID ${mediaId} not found or not owned by you`
+              }
             });
+          }
 
-            // Create service items
-            for (const item of items) {
-                await Database.insert('service_items', {
-                    request_id: requestId,
-                    category: item.category,
-                    title: item.title || null,
-                    problem_description: item.problem_description || null,
-                    created_at: new Date(),
-                    updated_at: new Date()
-                });
-            }
+          const media = mediaRows[0]; // CHANGE 9: Get first row
 
-            // Link media to request
-            const allMedia = [
-                ...(images || []),
-                ...(videos || []),
-                ...(voice_note ? [voice_note] : [])
-            ];
+          // Update media with request_id
+          await connection.query(
+            'UPDATE media SET request_id = ? WHERE id = ?',
+            [requestId, mediaId]
+          );
 
-            if (allMedia.length > 0) {
-                for (const s3Key of allMedia) {
-                    // Update media record with request_id
-                    await Database.update(
-                        'media',
-                        { request_id: requestId },
-                        's3_key = ?',
-                        [s3Key]
-                    );
-                }
-            }
-
-            logger.info(`Service request ${requestId} created by customer ${customerId}`);
-
-            res.status(201).json({
-                id: requestId,
-                status: SERVICE_REQUEST_STATUS.REQUESTED
-            });
-        } catch (error) {
-            next(error);
+          // Update S3 key to include actual request_id
+          const oldKey = media.s3_key;
+          const newKey = oldKey.replace('/temp/', `/${requestId}/`);
+          
+          await connection.query(
+            'UPDATE media SET s3_key = ? WHERE id = ?',
+            [newKey, mediaId]
+          );
         }
-    }
+        logger.info('Media linked', { count: media_ids.length }); // CHANGE 10: Add logging
+      }
 
-    // Get customer's service requests
-    static async getCustomerRequests(req, res, next) {
+      await connection.commit();
+      logger.info(`Service request ${requestId} created successfully by customer ${customerId}`);
+
+      // CHANGE 11: Make notification non-blocking
+      setImmediate(async () => {
         try {
-            const customerId = req.user.id;
+          const admin = await Database.queryOne('SELECT phone FROM admins LIMIT 1');
+          if (admin) {
+            await NotificationService.sendNewRequestNotification(admin.phone, requestId);
+          }
+        } catch (notificationError) {
+          logger.error('Failed to send notification (non-critical):', notificationError);
+        }
+      });
 
-            const requests = await Database.query(
-                `SELECT sr.*, 
+      res.status(201).json({
+        success: true,
+        id: requestId,
+        status: SERVICE_REQUEST_STATUS.REQUESTED
+      });
+    } catch (error) {
+      logger.error('Error creating service request:', error); // CHANGE 12: Log before rollback
+      if (connection) { // CHANGE 13: Check if connection exists
+        try {
+          await connection.rollback();
+        } catch (rollbackError) {
+          logger.error('Rollback failed:', rollbackError); // CHANGE 14: Log rollback errors
+        }
+      }
+      next(error);
+    } finally {
+      if (connection) { // CHANGE 15: Check if connection exists before releasing
+        connection.release();
+      }
+    }
+  }
+
+  // Get customer's service requests
+  static async getCustomerRequests(req, res, next) {
+    try {
+      const customerId = req.user.id;
+
+      const requests = await Database.query(
+        `SELECT sr.*, 
                 COUNT(DISTINCT si.id) as items_count,
                 COUNT(DISTINCT m.id) as media_count
          FROM service_requests sr
@@ -110,144 +201,150 @@ class ServiceRequestController {
          WHERE sr.customer_id = ?
          GROUP BY sr.id
          ORDER BY sr.created_at DESC`,
-                [customerId]
-            );
+        [customerId]
+      );
 
-            res.json({ requests });
-        } catch (error) {
-            next(error);
-        }
+      res.json({ requests });
+    } catch (error) {
+      next(error);
     }
+  }
 
-    // Get single service request detail
-    static async getRequestDetail(req, res, next) {
+  // Get single service request detail
+  static async getRequestDetail(req, res, next) {
+    try {
+      const { id } = req.params;
+      const customerId = req.user.id;
+
+      // Get request
+      const request = await Database.queryOne(
+        'SELECT * FROM service_requests WHERE id = ? AND customer_id = ?',
+        [id, customerId]
+      );
+
+      if (!request) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Service request not found'
+          }
+        });
+      }
+
+      // Get items
+      const items = await Database.query(
+        'SELECT * FROM service_items WHERE request_id = ?',
+        [id]
+      );
+
+      // Get media with signed URLs
+      const media = await Database.query(
+        'SELECT * FROM media WHERE request_id = ?',
+        [id]
+      );
+
+      // Generate signed URLs for media
+      for (const m of media) {
+        m.url = await S3Service.generatePresignedDownloadUrl(m.s3_key);
+      }
+
+      // Generate signed URL for quote voice note if exists
+      if (request.quote_voice_s3_key) {
+        request.quote_voice_url = await S3Service.generatePresignedDownloadUrl(
+          request.quote_voice_s3_key
+        );
+      }
+
+      res.json({
+        request,
+        items,
+        media
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Accept quote (customer)
+  static async acceptQuote(req, res, next) {
+    try {
+      const { id } = req.params;
+      const customerId = req.user.id;
+      const { accept } = req.body;
+
+      if (!accept) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Accept must be true'
+          }
+        });
+      }
+
+      // Get request
+      const request = await Database.queryOne(
+        'SELECT * FROM service_requests WHERE id = ? AND customer_id = ?',
+        [id, customerId]
+      );
+
+      if (!request) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Service request not found'
+          }
+        });
+      }
+
+      if (request.status !== SERVICE_REQUEST_STATUS.QUOTED) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_STATUS',
+            message: 'Request must be in quoted status'
+          }
+        });
+      }
+
+      if (!request.quote_min || !request.quote_max) {
+        return res.status(400).json({
+          error: {
+            code: 'NO_QUOTE',
+            message: 'No quote available for this request'
+          }
+        });
+      }
+
+      // Update status to accepted
+      await Database.update(
+        'service_requests',
+        {
+          status: SERVICE_REQUEST_STATUS.ACCEPTED,
+          updated_at: new Date()
+        },
+        'id = ?',
+        [id]
+      );
+
+      // CHANGE 16: Make notification non-blocking
+      setImmediate(async () => {
         try {
-            const { id } = req.params;
-            const customerId = req.user.id;
-
-            // Get request
-            const request = await Database.queryOne(
-                'SELECT * FROM service_requests WHERE id = ? AND customer_id = ?',
-                [id, customerId]
-            );
-
-            if (!request) {
-                return res.status(404).json({
-                    error: {
-                        code: 'NOT_FOUND',
-                        message: 'Service request not found'
-                    }
-                });
-            }
-
-            // Get items
-            const items = await Database.query(
-                'SELECT * FROM service_items WHERE request_id = ?',
-                [id]
-            );
-
-            // Get media with signed URLs
-            const media = await Database.query(
-                'SELECT * FROM media WHERE request_id = ?',
-                [id]
-            );
-
-            // Generate signed URLs for media
-            for (const m of media) {
-                m.url = await S3Service.generatePresignedDownloadUrl(m.s3_key);
-            }
-
-            // Generate signed URL for quote voice note if exists
-            if (request.quote_voice_s3_key) {
-                request.quote_voice_url = await S3Service.generatePresignedDownloadUrl(
-                    request.quote_voice_s3_key
-                );
-            }
-
-            res.json({
-                request,
-                items,
-                media
-            });
-        } catch (error) {
-            next(error);
+          const admin = await Database.queryOne('SELECT phone FROM admins LIMIT 1');
+          if (admin) {
+            await NotificationService.sendQuoteAcceptedNotification(admin.phone, id);
+          }
+        } catch (notificationError) {
+          logger.error('Failed to send notification (non-critical):', notificationError);
         }
+      });
+
+      res.json({
+        success: true,
+        status: SERVICE_REQUEST_STATUS.ACCEPTED
+      });
+    } catch (error) {
+      next(error);
     }
-
-    // Accept quote (customer)
-    static async acceptQuote(req, res, next) {
-        try {
-            const { id } = req.params;
-            const customerId = req.user.id;
-            const { accept } = req.body;
-
-            if (!accept) {
-                return res.status(400).json({
-                    error: {
-                        code: 'INVALID_REQUEST',
-                        message: 'Accept must be true'
-                    }
-                });
-            }
-
-            // Get request
-            const request = await Database.queryOne(
-                'SELECT * FROM service_requests WHERE id = ? AND customer_id = ?',
-                [id, customerId]
-            );
-
-            if (!request) {
-                return res.status(404).json({
-                    error: {
-                        code: 'NOT_FOUND',
-                        message: 'Service request not found'
-                    }
-                });
-            }
-
-            if (request.status !== SERVICE_REQUEST_STATUS.QUOTED) {
-                return res.status(400).json({
-                    error: {
-                        code: 'INVALID_STATUS',
-                        message: 'Request must be in quoted status'
-                    }
-                });
-            }
-
-            if (!request.quote_min || !request.quote_max) {
-                return res.status(400).json({
-                    error: {
-                        code: 'NO_QUOTE',
-                        message: 'No quote available for this request'
-                    }
-                });
-            }
-
-            // Update status to accepted
-            await Database.update(
-                'service_requests',
-                {
-                    status: SERVICE_REQUEST_STATUS.ACCEPTED,
-                    updated_at: new Date()
-                },
-                'id = ?',
-                [id]
-            );
-
-            // Notify admin (get first admin for now)
-            const admin = await Database.queryOne('SELECT phone FROM admins LIMIT 1');
-            if (admin) {
-                await NotificationService.sendQuoteAcceptedNotification(admin.phone, id);
-            }
-
-            res.json({
-                success: true,
-                status: SERVICE_REQUEST_STATUS.ACCEPTED
-            });
-        } catch (error) {
-            next(error);
-        }
-    }
+  }
 }
 
 module.exports = ServiceRequestController;

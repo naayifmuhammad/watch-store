@@ -21,6 +21,11 @@ router.post(
   AuthController.customerVerifyOTP
 );
 
+router.post(
+  '/customer/register',
+  AuthController.customerRegister
+);
+
 // Delivery auth routes
 router.post(
   '/delivery/request-otp',

@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS service_requests (
     quote_max INT NULL,
     quote_note TEXT NULL,
     quote_voice_s3_key VARCHAR(1024) NULL,
-    description TEXT NOT NULL,
+    description TEXT NULL,
     gps_lat DECIMAL(10,7) NULL,
     gps_lon DECIMAL(10,7) NULL,
     address_manual TEXT NOT NULL,
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS service_items (
 -- Media table
 CREATE TABLE IF NOT EXISTS media (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    request_id INT NOT NULL,
+    request_id INT NULL,
     uploader_type ENUM('customer', 'admin', 'tech', 'delivery') NOT NULL,
     type ENUM('image', 'video', 'voice') NOT NULL,
     s3_key VARCHAR(1024) NOT NULL,

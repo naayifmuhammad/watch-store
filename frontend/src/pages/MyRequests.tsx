@@ -42,7 +42,7 @@ const MyRequests = () => {
 
   const fetchRequests = async (token: string) => {
     try {
-      const response = await fetch(`${API_BASE}/customer/service-requests`, {
+      const response = await fetch(`${API_BASE}/service-requests`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

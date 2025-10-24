@@ -1,6 +1,12 @@
 const { getPool } = require('../config/database');
 
 class Database {
+
+  static async getConnection() {
+    const pool = getPool();
+    return await pool.getConnection();
+  }
+
   static async query(sql, params = []) {
     const pool = getPool();
     const [rows] = await pool.execute(sql, params);
