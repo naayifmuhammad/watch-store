@@ -8,6 +8,10 @@ const {
   verifyOtpDeliverySchema
 } = require('../utils/validation');
 
+// Admin OTP
+router.post('/admin/request-otp', AuthController.adminRequestOTP);
+router.post('/admin/verify-otp', AuthController.adminVerifyOTP);
+
 // Customer auth routes
 router.post(
   '/customer/request-otp',

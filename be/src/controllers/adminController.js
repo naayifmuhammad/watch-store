@@ -40,9 +40,12 @@ class AdminController {
       sql += ' GROUP BY sr.id ORDER BY sr.created_at DESC';
       
       // Pagination
-      const offset = (page - 1) * limit;
-      sql += ' LIMIT ? OFFSET ?';
-      params.push(parseInt(limit), offset);
+      const safeLimit = Number.isInteger(+limit) && +limit > 0 ? +limit : 20;
+      const safePage = Number.isInteger(+page) && +page > 0 ? +page : 1;
+      const offset = (safePage - 1) * safeLimit;
+
+sql += ` LIMIT ${safeLimit} OFFSET ${offset}`; // interpolate directly (safe, since controlled)
+
       
       const requests = await Database.query(sql, params);
       

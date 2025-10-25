@@ -1,668 +1,976 @@
-# Star Watch House - Complete Watch Care & Repair Platform
+# API Documentation
 
-## Application Overview
-
-**Star Watch House** is a comprehensive digital platform that modernizes the traditional watch repair and timepiece servicing industry by connecting customers, service centers, and delivery personnel through an intelligent, mobile-first web application.
-
-### The Problem We Solve
-
-Traditional watch repair services suffer from several pain points:
-- **Lack of transparency**: Customers don't know repair costs until they visit the shop
-- **Inconvenient logistics**: Customers must physically drop off and pick up their timepieces
-- **Poor tracking**: No visibility into repair status or estimated completion time
-- **Communication gaps**: Difficulty in conveying specific problems or understanding quotes
-- **Time-consuming**: Multiple trips to the shop disrupt busy schedules
-
-### Our Solution
-
-Star Watch House creates a seamless, end-to-end digital experience that eliminates these friction points through three specialized portals:
-
-#### **Customer Portal** - Your Timepiece, Your Convenience
-Customers can request repair services from the comfort of their homes. They simply describe the problem, upload photos and videos of their timepiece, and even record voice notes to explain issues that are hard to describe in text. Our platform handles doorstep pickup and delivery, provides transparent pricing with detailed quotes, and offers real-time status tracking throughout the entire repair journey.
-
-#### **Admin Dashboard** - Intelligent Service Management
-Service center administrators gain complete operational control. They can review incoming requests with rich media context (images, videos, voice notes), provide accurate quote ranges with optional voice explanations, manage the entire repair workflow from pickup to delivery, assign delivery personnel efficiently, and track business metrics through comprehensive analytics.
-
-#### **Delivery Portal** - Streamlined Logistics
-Delivery personnel receive a dedicated mobile-optimized interface showing only their assigned tasks. They can view pickup and delivery addresses with GPS coordinates, mark status updates with photo documentation, and maintain a clear view of their daily assignments without administrative clutter.
-
-### Key Features That Set Us Apart
-
-**🎙️ Multimedia Communication**: Beyond text - customers can show their watch problems through photos, videos, and voice recordings, ensuring nothing gets lost in translation.
-
-**📍 Smart Location Services**: Integrated GPS and reverse geocoding automatically capture accurate addresses, reducing delivery errors and confusion.
-
-**💰 Transparent Pricing**: Customers receive quote ranges before committing, with the option to accept or decline. No surprise costs.
-
-**📱 Mobile-First Design**: Every interface is optimized for smartphones, recognizing that most users will interact on-the-go.
-
-**🔐 Secure Role-Based Access**: Separate authentication and authorization for customers, admins, and delivery personnel ensures data privacy and appropriate access levels.
-
-**📊 Business Intelligence**: Real-time analytics help service centers understand demand patterns, track performance metrics, and optimize operations.
-
-**☁️ Cloud-Native Architecture**: All customer data and media securely stored in AWS S3, with scalable backend infrastructure ready for multi-branch expansion.
-
-**🔔 Proactive Notifications**: SMS alerts keep customers informed at every step - quote received, pickup scheduled, repair completed, out for delivery.
-
-### The Technology Behind It
-
-Built with modern, scalable technologies:
-- **Backend**: Node.js + Express REST API with MySQL database
-- **Frontend**: Next.js 14 with React and Tailwind CSS for responsive, fast interfaces
-- **Storage**: AWS S3 for secure, reliable media management
-- **Authentication**: JWT-based with separate tokens per role for enhanced security
-- **Integrations**: Google Maps API for geocoding, SMS gateway for notifications
-
-### Our Vision
-
-Star Watch House aims to become the standard platform for timepiece servicing, starting with single-location watch repair shops and scaling to multi-branch operations. We're digitizing an industry that has remained largely analog, bringing the convenience and transparency customers expect from modern digital services to the world of watch and clock repair.
-
-Whether you're a customer with a beloved vintage timepiece that needs care, a service center looking to modernize operations, or a delivery professional seeking efficient route management - Star Watch House provides the tools to make every interaction smooth, transparent, and satisfying.
+## Table of Contents
+1. [Overview](#overview)
+2. [Authentication](#authentication)
+3. [Customer APIs](#customer-apis)
+4. [Service Request APIs](#service-request-apis)
+5. [Admin APIs](#admin-apis)
+6. [Delivery APIs](#delivery-apis)
+7. [Media APIs](#media-apis)
+8. [Error Responses](#error-responses)
+9. [Status Constants](#status-constants)
 
 ---
 
-**Now let's build the customer-facing experience that brings this vision to life.**
+## Overview
 
-# 📘 API Documentation
-
-**Base URL (Development):**
-
+### Base URL
 ```
-http://localhost:4000/api
+http://your-domain.com/api
 ```
 
-All responses follow structures defined directly in controller methods.
-
----
-
-## 🔐 Authentication Overview
-
-| Role     | Description                     | Auth Type                                     |
-| -------- | ------------------------------- | --------------------------------------------- |
-| Customer | End users of the app            | JWT (Bearer Token)                            |
-| Delivery | Delivery personnel              | JWT (Bearer Token)                            |
-| Admin    | Internal management (dashboard) | JWT (Bearer Token or server-protected routes) |
-
-All protected endpoints require the following header:
-
+### Authentication
+Most endpoints require authentication via JWT token in the Authorization header:
 ```
-Authorization: Bearer <JWT_TOKEN>
+Authorization: Bearer <token>
 ```
 
----
-
-## 🧩 AUTH ROUTES
-
-### 1. Customer Request OTP
-
-**POST** `/auth/customer/request-otp`
-
-Request body:
-
+### Response Format
+All responses follow this general structure:
 ```json
 {
-  "phone": "9876543210"
+  "success": true,
+  "data": {},
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Error description"
+  }
 }
 ```
 
-Example cURL:
-
-```bash
-curl -X POST http://localhost:4000/api/auth/customer/request-otp \
-  -H "Content-Type: application/json" \
-  -d '{"phone": "9876543210"}'
-```
-
-Response:
-
-```json
-{ "ok": true }
-```
-
 ---
 
-### 2. Customer Verify OTP
+## Authentication
 
-**POST** `/auth/customer/verify-otp`
+### 1. Admin Request OTP
 
-Request body:
+**Endpoint:** `POST /auth/admin/request-otp`
 
+**Description:** Request OTP for admin login
+
+**Auth Required:** No
+
+**Request Body:**
 ```json
 {
-  "phone": "9876543210",
-  "code": "1234",
-  "name": "John Doe",
-  "email": "john@example.com",
-  "default_address": "123 Main St",
-  "lat": 9.9312,
-  "lon": 76.2673
+  "phone": "string (required, 10 digits)"
 }
 ```
 
-Response:
-
+**Response (200):**
 ```json
 {
-  "token": "<JWT_TOKEN>",
+  "ok": true
+}
+```
+
+**Use Case:** Admin enters phone number to receive OTP for login
+
+---
+
+### 2. Admin Verify OTP
+
+**Endpoint:** `POST /auth/admin/verify-otp`
+
+**Description:** Verify OTP and get admin JWT token
+
+**Auth Required:** No
+
+**Request Body:**
+```json
+{
+  "phone": "string (required)",
+  "code": "string (required, 6 digits)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "token": "string (JWT token)",
+  "admin": {
+    "id": "number",
+    "phone": "string",
+    "name": "string"
+  }
+}
+```
+
+**Use Case:** Admin verifies OTP and receives authentication token
+
+---
+
+### 3. Customer Request OTP
+
+**Endpoint:** `POST /auth/customer/request-otp`
+
+**Description:** Request OTP for customer login/registration
+
+**Auth Required:** No
+
+**Request Body:**
+```json
+{
+  "phone": "string (required, 10 digits)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "ok": true
+}
+```
+
+**Use Case:** Customer enters phone number to receive OTP
+
+---
+
+### 4. Customer Verify OTP
+
+**Endpoint:** `POST /auth/customer/verify-otp`
+
+**Description:** Verify OTP - returns token for existing users or prompts registration for new users
+
+**Auth Required:** No
+
+**Request Body:**
+```json
+{
+  "phone": "string (required)",
+  "code": "string (required, 6 digits)"
+}
+```
+
+**Response for Existing User (200):**
+```json
+{
+  "success": true,
+  "is_new_user": false,
+  "token": "string (JWT token)",
   "customer": {
-    "id": 1,
-    "phone": "9876543210",
-    "name": "John Doe",
-    "email": "john@example.com"
+    "id": "number",
+    "phone": "string",
+    "name": "string",
+    "email": "string"
   }
 }
 ```
 
----
-
-### 3. Delivery Request OTP
-
-**POST** `/auth/delivery/request-otp`
-
-Request body:
-
+**Response for New User (200):**
 ```json
 {
-  "phone": "9876543210"
+  "success": true,
+  "is_new_user": true,
+  "message": "OTP verified. First-time user. Please complete registration."
 }
 ```
 
-Response:
-
-```json
-{ "ok": true }
-```
+**Use Case:** After OTP verification, system determines if user needs to register or can login directly
 
 ---
 
-### 4. Delivery Verify OTP
+### 5. Customer Register
 
-**POST** `/auth/delivery/verify-otp`
+**Endpoint:** `POST /auth/customer/register`
 
-Request body:
+**Description:** Register new customer after OTP verification
 
+**Auth Required:** No
+
+**Request Body:**
 ```json
 {
-  "phone": "9876543210",
-  "code": "1234"
+  "phone": "string (required)",
+  "name": "string (optional)",
+  "email": "string (optional, valid email)",
+  "default_address": "string (optional)",
+  "lat": "number (optional)",
+  "lon": "number (optional)"
 }
 ```
 
-Response:
-
+**Response (200):**
 ```json
 {
-  "token": "<JWT_TOKEN>",
+  "success": true,
+  "token": "string (JWT token)",
+  "customer": {
+    "id": "number",
+    "phone": "string",
+    "name": "string",
+    "email": "string"
+  }
+}
+```
+
+**Use Case:** Complete customer registration after first-time OTP verification
+
+---
+
+### 6. Delivery Request OTP
+
+**Endpoint:** `POST /auth/delivery/request-otp`
+
+**Description:** Request OTP for delivery personnel login
+
+**Auth Required:** No
+
+**Request Body:**
+```json
+{
+  "phone": "string (required, 10 digits)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "ok": true
+}
+```
+
+**Error (403):**
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Delivery personnel not found or inactive"
+  }
+}
+```
+
+**Use Case:** Delivery person enters registered phone to receive OTP
+
+---
+
+### 7. Delivery Verify OTP
+
+**Endpoint:** `POST /auth/delivery/verify-otp`
+
+**Description:** Verify OTP and get delivery personnel JWT token
+
+**Auth Required:** No
+
+**Request Body:**
+```json
+{
+  "phone": "string (required)",
+  "code": "string (required, 6 digits)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "token": "string (JWT token)",
   "delivery": {
-    "id": 4,
-    "phone": "9876543210",
-    "name": "Ravi Kumar"
+    "id": "number",
+    "phone": "string",
+    "name": "string"
   }
 }
 ```
 
+**Use Case:** Delivery person verifies OTP and receives authentication token
+
 ---
 
-## 🧑‍💼 ADMIN ROUTES
+## Customer APIs
 
-All admin routes require valid admin authorization (JWT or internal auth middleware).
+### 8. Get Customer Profile
 
-### 1. Get All Service Requests
+**Endpoint:** `GET /customer/profile`
 
-**GET** `/admin/service-requests`
+**Description:** Get logged-in customer's profile information
 
-Query parameters:
+**Auth Required:** Yes (Customer)
 
-| Param     | Type   | Description              |
-| --------- | ------ | ------------------------ |
-| `status`  | string | Filter by request status |
-| `shop_id` | number | Filter by shop           |
-| `page`    | number | Pagination page          |
-| `limit`   | number | Results per page         |
-
-Example:
-
-```bash
-curl -X GET "http://localhost:4000/api/admin/service-requests?status=QUOTED&page=1&limit=10" \
-  -H "Authorization: Bearer <JWT_TOKEN>"
+**Response (200):**
+```json
+{
+  "customer": {
+    "id": "number",
+    "phone": "string",
+    "name": "string",
+    "email": "string",
+    "default_address": "string",
+    "latitude": "number",
+    "longitude": "number",
+    "created_at": "datetime"
+  }
+}
 ```
 
-Response:
+**Use Case:** Display customer profile information
 
+---
+
+### 9. Update Customer Profile
+
+**Endpoint:** `PATCH /customer/profile`
+
+**Description:** Update customer profile information
+
+**Auth Required:** Yes (Customer)
+
+**Request Body:**
+```json
+{
+  "name": "string (optional)",
+  "email": "string (optional, valid email)",
+  "default_address": "string (optional)",
+  "latitude": "number (optional)",
+  "longitude": "number (optional)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "customer": {
+    "id": "number",
+    "phone": "string",
+    "name": "string",
+    "email": "string",
+    "default_address": "string",
+    "latitude": "number",
+    "longitude": "number"
+  }
+}
+```
+
+**Use Case:** Customer updates their profile information
+
+---
+
+### 10. Reverse Geocode
+
+**Endpoint:** `GET /customer/geocode`
+
+**Description:** Convert GPS coordinates to human-readable address
+
+**Auth Required:** Yes (Customer)
+
+**Query Parameters:**
+- `lat`: number (required, -90 to 90)
+- `lon`: number (required, -180 to 180)
+
+**Example:**
+```
+GET /customer/geocode?lat=28.6139&lon=77.2090
+```
+
+**Response (200):**
+```json
+{
+  "address": "string (formatted address)",
+  "lat": "number",
+  "lon": "number"
+}
+```
+
+**Response when address not found (200):**
+```json
+{
+  "address": null,
+  "message": "Could not determine address from coordinates"
+}
+```
+
+**Use Case:** Convert customer's GPS location to readable address for service request
+
+---
+
+## Service Request APIs
+
+### 11. Create Service Request
+
+**Endpoint:** `POST /service-requests`
+
+**Description:** Create a new service request with items and media
+
+**Auth Required:** Yes (Customer)
+
+**Request Body:**
+```json
+{
+  "items": [
+    {
+      "category": "string (required, e.g., 'watch', 'clock')",
+      "title": "string (optional)",
+      "description": "string (optional, problem description)"
+    }
+  ],
+  "media_ids": ["number (optional, array of media IDs)"],
+  "address_manual": "string (required, delivery address)",
+  "gps_lat": "number (optional)",
+  "gps_lon": "number (optional)"
+}
+```
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "id": "number (service request ID)",
+  "status": "requested"
+}
+```
+
+**Use Case:** Customer creates a service request for watch/clock repair
+
+**Flow:**
+1. Customer uploads media first (see Media APIs)
+2. Customer fills in service details
+3. Creates request with media_ids and items
+4. Admin receives notification of new request
+
+---
+
+### 12. Get Customer's Service Requests
+
+**Endpoint:** `GET /service-requests`
+
+**Description:** Get all service requests for logged-in customer
+
+**Auth Required:** Yes (Customer)
+
+**Response (200):**
 ```json
 {
   "requests": [
     {
-      "id": 12,
-      "customer_name": "John Doe",
-      "shop_name": "ABC Electronics",
-      "status": "QUOTED",
-      "items_count": 2
+      "id": "number",
+      "shop_id": "number",
+      "customer_id": "number",
+      "status": "string",
+      "description": "string",
+      "address_manual": "string",
+      "gps_lat": "number",
+      "gps_lon": "number",
+      "quote_min": "number",
+      "quote_max": "number",
+      "quote_note": "string",
+      "quote_voice_s3_key": "string",
+      "scheduled_pickup_at": "datetime",
+      "delivery_person_id": "number",
+      "created_at": "datetime",
+      "updated_at": "datetime",
+      "items_count": "number",
+      "media_count": "number"
     }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 5,
-    "pages": 1
-  }
+  ]
 }
 ```
 
+**Use Case:** Display customer's service request history
+
 ---
 
-### 2. Get Single Service Request
+### 13. Get Service Request Detail
 
-**GET** `/admin/service-requests/:id`
+**Endpoint:** `GET /service-requests/:id`
 
-Example:
+**Description:** Get detailed information about a specific service request
 
-```bash
-curl -X GET http://localhost:4000/api/admin/service-requests/12 \
-  -H "Authorization: Bearer <JWT_TOKEN>"
-```
+**Auth Required:** Yes (Customer)
 
-Response:
+**URL Parameters:**
+- `id`: number (service request ID)
 
+**Response (200):**
 ```json
 {
   "request": {
-    "id": 12,
-    "customer_name": "John Doe",
-    "shop_name": "ABC Electronics",
-    "status": "QUOTED",
-    "quote_min": 200,
-    "quote_max": 400
+    "id": "number",
+    "shop_id": "number",
+    "customer_id": "number",
+    "status": "string",
+    "description": "string",
+    "address_manual": "string",
+    "gps_lat": "number",
+    "gps_lon": "number",
+    "quote_min": "number",
+    "quote_max": "number",
+    "quote_note": "string",
+    "quote_voice_s3_key": "string",
+    "quote_voice_url": "string (presigned URL if voice note exists)",
+    "scheduled_pickup_at": "datetime",
+    "delivery_person_id": "number",
+    "created_at": "datetime",
+    "updated_at": "datetime"
   },
   "items": [
-    { "id": 1, "name": "Mobile Screen Replacement" }
+    {
+      "id": "number",
+      "request_id": "number",
+      "category": "string",
+      "title": "string",
+      "problem_description": "string",
+      "created_at": "datetime",
+      "updated_at": "datetime"
+    }
   ],
   "media": [
     {
-      "id": 3,
-      "url": "https://s3.presigned-url"
+      "id": "number",
+      "request_id": "number",
+      "uploader_type": "string",
+      "type": "string (image/video/voice)",
+      "s3_key": "string",
+      "url": "string (presigned download URL)",
+      "original_filename": "string",
+      "size_bytes": "number",
+      "duration_seconds": "number",
+      "created_at": "datetime"
     }
   ]
 }
 ```
 
----
-
-### 3. Send Quote
-
-**POST** `/admin/service-requests/:id/quote`
-
-Body:
-
-```json
-{
-  "quote_min": 200,
-  "quote_max": 400,
-  "quote_note": "Estimate includes parts and service.",
-  "voice_note_s3_key": "quotes/audio123.mp3"
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "status": "QUOTED"
-}
-```
+**Use Case:** View complete details of a service request including items, media, and quote
 
 ---
 
-### 4. Confirm Order
+### 14. Accept Quote
 
-**POST** `/admin/service-requests/:id/confirm`
+**Endpoint:** `POST /service-requests/:id/accept-quote`
 
-Body:
+**Description:** Customer accepts the quote provided by admin
 
+**Auth Required:** Yes (Customer)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Request Body:**
 ```json
 {
-  "scheduled_pickup_at": "2025-10-24T10:00:00Z"
+  "accept": true
 }
 ```
 
-Response:
-
+**Response (200):**
 ```json
 {
   "success": true,
-  "status": "SCHEDULED"
+  "status": "accepted"
 }
 ```
 
----
-
-### 5. Assign Delivery Person
-
-**POST** `/admin/service-requests/:id/assign-delivery`
-
-Body:
-
+**Error (400) - Invalid Status:**
 ```json
 {
-  "delivery_person_id": 3
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "delivery_person": {
-    "id": 3,
-    "name": "Ravi Kumar"
+  "error": {
+    "code": "INVALID_STATUS",
+    "message": "Request must be in quoted status"
   }
 }
 ```
 
----
-
-### 6. Mark Received at Shop
-
-**POST** `/admin/service-requests/:id/mark-received`
-
-Response:
-
-```json
-{
-  "success": true,
-  "status": "RECEIVED_SHOP"
-}
-```
+**Use Case:** Customer reviews quote and accepts it to proceed with service
 
 ---
 
-### 7. Mark In Repair
+## Admin APIs
 
-**POST** `/admin/service-requests/:id/mark-in-repair`
+### 15. Get All Service Requests
 
-Response:
+**Endpoint:** `GET /admin/service-requests`
 
-```json
-{
-  "success": true,
-  "status": "IN_REPAIR"
-}
+**Description:** Get all service requests with optional filtering and pagination
+
+**Auth Required:** Yes (Admin)
+
+**Query Parameters:**
+- `status`: string (optional, filter by status)
+- `shop_id`: number (optional, filter by shop)
+- `page`: number (optional, default: 1)
+- `limit`: number (optional, default: 20)
+
+**Example:**
+```
+GET /admin/service-requests?status=requested&page=1&limit=20
 ```
 
----
-
-### 8. Mark Ready for Payment
-
-**POST** `/admin/service-requests/:id/mark-ready-for-payment`
-
-Response:
-
-```json
-{
-  "success": true,
-  "status": "READY_FOR_PAYMENT"
-}
-```
-
----
-
-### 9. Mark Paid
-
-**POST** `/admin/service-requests/:id/mark-paid`
-
-Response:
-
-```json
-{
-  "success": true,
-  "status": "PAYMENT_RECEIVED"
-}
-```
-
----
-
-### 10. Get All Delivery Personnel
-
-**GET** `/admin/delivery-personnel`
-
-Query:
-
-| Param    | Type    | Description                  |
-| -------- | ------- | ---------------------------- |
-| `active` | boolean | (optional) true/false filter |
-
-Response:
-
-```json
-{
-  "personnel": [
-    { "id": 1, "name": "Ravi Kumar", "phone": "9876543210", "active": 1 }
-  ]
-}
-```
-
----
-
-### 11. Create Delivery Person
-
-**POST** `/admin/delivery-personnel`
-
-Body:
-
-```json
-{
-  "name": "Ravi Kumar",
-  "phone": "9876543210"
-}
-```
-
-Response:
-
-```json
-{
-  "delivery_person": {
-    "id": 1,
-    "name": "Ravi Kumar",
-    "phone": "9876543210",
-    "active": 1
-  }
-}
-```
-
----
-
-### 12. Toggle Delivery Person Status
-
-**PATCH** `/admin/delivery-personnel/:id/toggle`
-
-Body:
-
-```json
-{
-  "active": false
-}
-```
-
-Response:
-
-```json
-{ "success": true }
-```
-
----
-
-### 13. Get All Shops
-
-**GET** `/admin/shops`
-
-Response:
-
-```json
-{
-  "shops": [
-    {
-      "id": 1,
-      "name": "ABC Electronics",
-      "phone": "9998887776"
-    }
-  ]
-}
-```
-
----
-
-### 14. Create Shop
-
-**POST** `/admin/shops`
-
-Body:
-
-```json
-{
-  "name": "ABC Electronics",
-  "address": "Market Road, Kochi",
-  "phone": "9998887776"
-}
-```
-
-Response:
-
-```json
-{
-  "shop": {
-    "id": 2,
-    "name": "ABC Electronics",
-    "address": "Market Road, Kochi",
-    "phone": "9998887776"
-  }
-}
-```
-
----
-
-## 🚚 DELIVERY ROUTES
-
-Protected via Delivery JWT.
-
-### 1. Get Assigned Requests
-
-**GET** `/delivery/requests`
-
-Query:
-
-| Param    | Type   | Description              |
-| -------- | ------ | ------------------------ |
-| `status` | string | Filter by request status |
-| `page`   | number | Pagination               |
-| `limit`  | number | Page size                |
-
----
-
-### 2. Mark as Picked Up
-
-**POST** `/delivery/requests/:id/pickup`
-
-Response:
-
-```json
-{ "success": true, "status": "PICKED_UP" }
-```
-
----
-
-### 3. Mark as Delivered
-
-**POST** `/delivery/requests/:id/deliver`
-
-Response:
-
-```json
-{ "success": true, "status": "DELIVERED" }
-```
-
----
-
-## 👤 CUSTOMER ROUTES
-
-Protected via Customer JWT.
-
-### 1. Create Service Request
-
-**POST** `/customer/service-requests`
-
-Body:
-
-```json
-{
-  "items": [
-    { "category": "Mobile", "description": "Broken screen" }
-  ],
-  "shop_id": 1,
-  "media_s3_keys": ["uploads/img1.jpg", "uploads/img2.jpg"]
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "request_id": 15
-}
-```
-
----
-
-### 2. Get My Service Requests
-
-**GET** `/customer/service-requests`
-
-Response:
-
+**Response (200):**
 ```json
 {
   "requests": [
-    { "id": 15, "status": "QUOTED", "quote_min": 200, "quote_max": 400 }
+    {
+      "id": "number",
+      "shop_id": "number",
+      "customer_id": "number",
+      "status": "string",
+      "description": "string",
+      "address_manual": "string",
+      "quote_min": "number",
+      "quote_max": "number",
+      "scheduled_pickup_at": "datetime",
+      "delivery_person_id": "number",
+      "created_at": "datetime",
+      "updated_at": "datetime",
+      "customer_name": "string",
+      "customer_phone": "string",
+      "shop_name": "string",
+      "delivery_person_name": "string",
+      "items_count": "number"
+    }
+  ],
+  "pagination": {
+    "page": "number",
+    "limit": "number",
+    "total": "number",
+    "pages": "number"
+  }
+}
+```
+
+**Use Case:** Admin dashboard displaying all service requests with filtering
+
+---
+
+### 16. Get Service Request Detail (Admin)
+
+**Endpoint:** `GET /admin/service-requests/:id`
+
+**Description:** Get detailed view of service request (admin view with full customer info)
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Response (200):**
+```json
+{
+  "request": {
+    "id": "number",
+    "shop_id": "number",
+    "customer_id": "number",
+    "status": "string",
+    "description": "string",
+    "address_manual": "string",
+    "gps_lat": "number",
+    "gps_lon": "number",
+    "quote_min": "number",
+    "quote_max": "number",
+    "quote_note": "string",
+    "quote_voice_s3_key": "string",
+    "quote_voice_url": "string (presigned URL)",
+    "scheduled_pickup_at": "datetime",
+    "delivery_person_id": "number",
+    "created_at": "datetime",
+    "updated_at": "datetime",
+    "customer_name": "string",
+    "customer_phone": "string",
+    "customer_email": "string",
+    "customer_default_address": "string",
+    "shop_name": "string",
+    "delivery_person_name": "string",
+    "delivery_person_phone": "string"
+  },
+  "items": [...],
+  "media": [...]
+}
+```
+
+**Use Case:** Admin views complete service request details with customer information
+
+---
+
+### 17. Send Quote
+
+**Endpoint:** `POST /admin/service-requests/:id/send-quote`
+
+**Description:** Send price quote to customer
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Request Body:**
+```json
+{
+  "quote_min": "number (required, minimum price)",
+  "quote_max": "number (required, maximum price)",
+  "quote_note": "string (optional, text explanation)",
+  "voice_note_s3_key": "string (optional, S3 key of voice note)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "status": "quoted"
+}
+```
+
+**Use Case:** Admin reviews service request and sends price quote to customer
+
+**Flow:**
+1. Admin reviews items and photos
+2. Determines price range
+3. Optionally records voice note explanation
+4. Sends quote to customer (triggers SMS notification)
+
+---
+
+### 18. Confirm Order
+
+**Endpoint:** `POST /admin/service-requests/:id/confirm`
+
+**Description:** Confirm order and optionally schedule pickup
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Request Body:**
+```json
+{
+  "scheduled_pickup_at": "datetime (optional, ISO 8601 format)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "status": "accepted" // or "scheduled" if pickup time provided
+}
+```
+
+**Use Case:** After customer accepts quote, admin confirms and schedules pickup
+
+---
+
+### 19. Assign Delivery Person
+
+**Endpoint:** `POST /admin/service-requests/:id/assign-delivery`
+
+**Description:** Assign delivery personnel to service request
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Request Body:**
+```json
+{
+  "delivery_person_id": "number (required)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "delivery_person": {
+    "id": "number",
+    "name": "string"
+  }
+}
+```
+
+**Error (404):**
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Delivery person not found or inactive"
+  }
+}
+```
+
+**Use Case:** Admin assigns active delivery person to pick up customer's items
+
+---
+
+### 20. Mark Received at Shop
+
+**Endpoint:** `POST /admin/service-requests/:id/mark-received`
+
+**Description:** Mark that items have been received at the shop
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Request Body:**
+```json
+{
+  "notes": "string (optional)"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "status": "received_shop"
+}
+```
+
+**Use Case:** After delivery person brings items to shop, admin confirms receipt
+
+---
+
+### 21. Mark In Repair
+
+**Endpoint:** `POST /admin/service-requests/:id/mark-in-repair`
+
+**Description:** Mark that repair work has started
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "status": "in_repair"
+}
+```
+
+**Use Case:** Admin marks that technician has started working on the items
+
+---
+
+### 22. Mark Ready for Payment
+
+**Endpoint:** `POST /admin/service-requests/:id/mark-ready-for-payment`
+
+**Description:** Mark that repair is complete and awaiting payment
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "status": "ready_for_payment"
+}
+```
+
+**Use Case:** Repair completed, admin notifies customer to make payment
+
+---
+
+### 23. Mark Paid
+
+**Endpoint:** `POST /admin/service-requests/:id/mark-paid`
+
+**Description:** Confirm payment received from customer
+
+**Auth Required:** Yes (Admin)
+
+**URL Parameters:**
+- `id`: number (service request ID)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "status": "payment_received"
+}
+```
+
+**Use Case:** Customer pays, admin confirms and items are ready for return delivery
+
+---
+
+### 24. Create Delivery Personnel
+
+**Endpoint:** `POST /admin/delivery-personnel`
+
+**Description:** Create new delivery personnel account
+
+**Auth Required:** Yes (Admin)
+
+**Request Body:**
+```json
+{
+  "phone": "string (required, 10 digits)",
+  "name": "string (required, max 255 chars)"
+}
+```
+
+**Response (201):**
+```json
+{
+  "delivery_person": {
+    "id": "number",
+    "phone": "string",
+    "name": "string",
+    "active": "boolean"
+  }
+}
+```
+
+**Error (400):**
+```json
+{
+  "error": {
+    "code": "ALREADY_EXISTS",
+    "message": "Delivery person with this phone already exists"
+  }
+}
+```
+
+**Use Case:** Admin adds new delivery personnel to the system
+
+---
+
+### 25. Get All Delivery Personnel
+
+**Endpoint:** `GET /admin/delivery-personnel`
+
+**Description:** Get list of all delivery personnel
+
+**Auth Required:** Yes (Admin)
+
+**Query Parameters:**
+- `active`: boolean (optional, filter by active status: "true" or "false")
+
+**Example:**
+```
+GET /admin/delivery-personnel?active=true
+```
+
+**Response (200):**
+```json
+{
+  "personnel": [
+    {
+      "id": "number",
+      "phone": "string",
+      "name": "string",
+      "active": "boolean",
+      "created_at": "datetime"
+    }
   ]
 }
 ```
 
----
-
-### 3. Accept Quote
-
-**POST** `/customer/service-requests/:id/accept-quote`
-
-Response:
-
-```json
-{ "success": true, "status": "ACCEPTED" }
-```
+**Use Case:** Display list of delivery personnel for assignment
 
 ---
 
-### 4. Cancel Request
+### 26. Toggle Delivery Person Status
 
-**POST** `/customer/service-requests/:id/cancel`
-
-Response:
-
-```json
-{ "success": true, "status": "CANCELLED" }
-```
-
----
-
-## ⚙️ Notes
-
-* `S3Service.generatePresignedDownloadUrl` returns temporary signed URLs for media and voice files.
-* Timestamps follow ISO 8601 format.
-* Status constants include:
-  `PENDING`, `QUOTED`, `ACCEPTED`, `SCHEDULED`, `RECEIVED_SHOP`, `IN_REPAIR`, `READY_FOR_PAYMENT`, `PAYMENT_RECEIVED`, `DELIVERED`, `CANCELLED`.
-* All date/times are in UTC unless otherwise noted.
-
----
-
-📄 **End of API Documentation**
+**Endpoint:** `PATCH /admin/delivery-personnel/:id/status

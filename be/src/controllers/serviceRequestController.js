@@ -10,11 +10,11 @@ class ServiceRequestController {
   // Create service request (customer)
   static async create(req, res, next) {
     let connection; // CHANGE 1: Declare outside try block
-    
+
     try {
       connection = await Database.getConnection();
       await connection.beginTransaction();
-      
+
       const customerId = req.user.id;
       const {
         items,
@@ -50,7 +50,7 @@ class ServiceRequestController {
       // CHANGE 3: Fix shop query to work with connection
       const [shops] = await connection.query('SELECT id FROM shops LIMIT 1');
       const shop = shops[0];
-      
+
       if (!shop) {
         await connection.rollback();
         return res.status(500).json({
@@ -140,13 +140,30 @@ class ServiceRequestController {
           // Update S3 key to include actual request_id
           const oldKey = media.s3_key;
           const newKey = oldKey.replace('/temp/', `/${requestId}/`);
-          
+
+
+
+          try {
+            await S3Service.moveFile(oldKey, newKey);
+            logger.info(`✅ Moved media file: ${oldKey} -> ${newKey}`);
+          } catch (s3Error) {
+            logger.error('❌ S3 file move failed:', s3Error);
+            await connection.rollback();
+            return res.status(500).json({
+              error: {
+                code: 'S3_ERROR',
+                message: 'Failed to move media file in storage'
+              }
+            });
+          }
+
+          // Update database with new key and request_id
           await connection.query(
-            'UPDATE media SET s3_key = ? WHERE id = ?',
-            [newKey, mediaId]
+            'UPDATE media SET s3_key = ?, request_id = ? WHERE id = ?',
+            [newKey, requestId, mediaId]
           );
         }
-        logger.info('Media linked', { count: media_ids.length }); // CHANGE 10: Add logging
+        logger.info('Media linked', { count: media_ids.length });
       }
 
       await connection.commit();

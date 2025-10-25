@@ -78,6 +78,53 @@ class S3Service {
       return null;
     }
   }
+  static async copyFile(sourceKey, destinationKey) {
+  const params = {
+    Bucket: bucket,
+    CopySource: `${bucket}/${sourceKey}`,
+    Key: destinationKey
+  };
+
+  try {
+    await s3.copyObject(params).promise();
+    logger.info(`✅ Copied S3 file: ${sourceKey} -> ${destinationKey}`);
+    return true;
+  } catch (error) {
+    logger.error(`❌ Failed to copy S3 file:`, error);
+    throw error;
+  }
+}
+
+
+  /**
+   * Delete file from S3
+   */
+  static async deleteFile(s3Key) {
+  const params = {
+    Bucket: bucket, // fix here too
+    Key: s3Key
+  };
+
+  try {
+    await s3.deleteObject(params).promise();
+    logger.info(`✅ Deleted S3 file: ${s3Key}`);
+    return true;
+  } catch (error) {
+    logger.error(`❌ Failed to delete S3 file:`, error);
+    throw error;
+  }
+}
+
+
+  /**
+   * Move file within S3 (copy + delete)
+   */
+  static async moveFile(sourceKey, destinationKey) {
+    await this.copyFile(sourceKey, destinationKey);
+    await this.deleteFile(sourceKey);
+    logger.info(`✅ Moved S3 file: ${sourceKey} -> ${destinationKey}`);
+  }
+
 }
 
 module.exports = S3Service;

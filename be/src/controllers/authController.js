@@ -5,6 +5,87 @@ const { generateToken } = require('../utils/jwt');
 const { ROLES, OTP_PURPOSES } = require('../utils/constants');
 
 class AuthController {
+
+  // Admin: Request OTP
+static async adminRequestOTP(req, res, next) {
+  try {
+    const { phone } = req.body;
+
+    // Check if admin exists
+    const admin = await Database.queryOne(
+      'SELECT * FROM admins WHERE phone = ?',
+      [phone]
+    );
+
+    if (!admin) {
+      return res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Admin not found'
+        }
+      });
+    }
+
+    const { code } = await OTPService.createOTPSession(
+      phone,
+      OTP_PURPOSES.ADMIN_INVITE
+    );
+
+    await smsService.sendOTP(phone, code);
+
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// Admin: Verify OTP
+static async adminVerifyOTP(req, res, next) {
+  try {
+    const { phone, code } = req.body;
+
+    // Verify OTP
+    await OTPService.verifyOTP(phone, code, OTP_PURPOSES.ADMIN_INVITE);
+
+    // Get admin details
+    const admin = await Database.queryOne(
+      'SELECT * FROM admins WHERE phone = ?',
+      [phone]
+    );
+
+    if (!admin) {
+      return res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Admin not found'
+        }
+      });
+    }
+
+    // Generate JWT
+    const token = generateToken(
+      {
+        sub: admin.id,
+        role: ROLES.ADMIN,
+        phone: admin.phone
+      },
+      ROLES.ADMIN
+    );
+
+    res.json({
+      success: true,
+      token,
+      admin: {
+        id: admin.id,
+        phone: admin.phone,
+        name: admin.name
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
   // Customer: Request OTP
   static async customerRequestOTP(req, res, next) {
     try {
