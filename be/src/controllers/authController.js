@@ -9,7 +9,7 @@ class AuthController {
   // Admin: Request OTP
 static async adminRequestOTP(req, res, next) {
   try {
-    const { phone } = req.body;
+    const { phone } = req.body; 
 
     // Check if admin exists
     const admin = await Database.queryOne(

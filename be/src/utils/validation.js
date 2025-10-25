@@ -2,7 +2,7 @@ const Joi = require('joi');
 
 // Phone validation (Indian format)
 const phoneSchema = Joi.string()
-  .pattern(/^\[6-9]\d{9}$/)
+  .pattern(/^[6-9]\d{9}$/)
   .required()
   .messages({
     'string.pattern.base': 'Phone must be in format 0000000000'

@@ -202,7 +202,7 @@ sql += ` LIMIT ${safeLimit} OFFSET ${offset}`; // interpolate directly (safe, si
     }
   }
   
-  // Confirm order (mark as accepted)
+  // Confirm order (mark as accepted - by admin)
   static async confirmOrder(req, res, next) {
     try {
       const { id } = req.params;
@@ -263,66 +263,88 @@ sql += ` LIMIT ${safeLimit} OFFSET ${offset}`; // interpolate directly (safe, si
     }
   }
   
-  // Assign delivery person
-  static async assignDelivery(req, res, next) {
-    try {
-      const { id } = req.params;
-      const { delivery_person_id } = req.body;
-      
-      // Verify delivery person exists and is active
-      const deliveryPerson = await Database.queryOne(
-        'SELECT * FROM delivery_personnel WHERE id = ? AND active = 1',
-        [delivery_person_id]
-      );
-      
-      if (!deliveryPerson) {
-        return res.status(404).json({
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Delivery person not found or inactive'
-          }
-        });
-      }
-      
-      // Verify request exists
-      const request = await Database.queryOne(
-        'SELECT * FROM service_requests WHERE id = ?',
-        [id]
-      );
-      
-      if (!request) {
-        return res.status(404).json({
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Service request not found'
-          }
-        });
-      }
-      
-      // Assign delivery person
-      await Database.update(
-        'service_requests',
-        {
-          delivery_person_id,
-          updated_at: new Date()
-        },
-        'id = ?',
-        [id]
-      );
-      
-      logger.info(`Delivery person ${delivery_person_id} assigned to request ${id}`);
-      
-      res.json({
-        success: true,
-        delivery_person: {
-          id: deliveryPerson.id,
-          name: deliveryPerson.name
-        }
-      });
-    } catch (error) {
-      next(error);
+  // Assign delivery person (atomic update)
+static async assignDelivery(req, res, next) {
+  const connection = await Database.getConnection(); // get pooled connection
+  try {
+    const { id } = req.params;
+    const { delivery_person_id } = req.body;
+
+    await connection.beginTransaction();
+
+    // Verify delivery person exists and is active
+    const deliveryPerson = await Database.queryOne(
+      'SELECT * FROM delivery_personnel WHERE id = ? AND active = 1',
+      [delivery_person_id],
+      connection
+    );
+
+    if (!deliveryPerson) {
+      throw {
+        status: 404,
+        code: 'NOT_FOUND',
+        message: 'Delivery person not found or inactive'
+      };
     }
+
+    // Verify service request exists
+    const request = await Database.queryOne(
+      'SELECT * FROM service_requests WHERE id = ?',
+      [id],
+      connection
+    );
+
+    if (!request) {
+      throw {
+        status: 404,
+        code: 'NOT_FOUND',
+        message: 'Service request not found'
+      };
+    }
+
+    // Atomic update: assign delivery person and mark as SCHEDULED
+    await Database.update(
+      'service_requests',
+      {
+        delivery_person_id,
+        status: SERVICE_REQUEST_STATUS.SCHEDULED,
+        updated_at: new Date()
+      },
+      'id = ?',
+      [id],
+      connection
+    );
+
+    await connection.commit();
+
+    logger.info(
+      `Delivery person ${delivery_person_id} assigned and request ${id} marked as SCHEDULED`
+    );
+
+    res.json({
+      success: true,
+      status: SERVICE_REQUEST_STATUS.SCHEDULED,
+      delivery_person: {
+        id: deliveryPerson.id,
+        name: deliveryPerson.name
+      }
+    });
+  } catch (error) {
+    if (connection.rollback) await connection.rollback();
+
+    if (error.status) {
+      return res.status(error.status).json({
+        error: { code: error.code, message: error.message }
+      });
+    }
+
+    next(error);
+  } finally {
+    if (connection.release) connection.release();
   }
+}
+
+
   
   // Mark as received at shop
   static async markReceived(req, res, next) {
