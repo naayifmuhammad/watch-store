@@ -13,6 +13,7 @@ router.use(authenticateDelivery);
 
 // Assignment routes
 router.get('/assignments', DeliveryController.getAssignments);
+router.get('/requests/:id', DeliveryController.getDeliveryRequestDetail);
 
 router.post(
   '/:request_id/mark-pickup',

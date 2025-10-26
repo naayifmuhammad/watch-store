@@ -37,6 +37,72 @@ class DeliveryController {
         }
     }
 
+    // Get single service request detail (admin view)
+  static async getDeliveryRequestDetail(req, res, next) {
+    try {
+      const { id } = req.params;
+      const deliveryPersonId = req.user.id;
+      
+      // Get request with customer info
+      const request = await Database.queryOne(
+        `SELECT sr.*, 
+                c.name as customer_name, 
+                c.phone as customer_phone,
+                c.email as customer_email,
+                c.default_address as customer_default_address,
+                s.name as shop_name,
+                dp.name as delivery_person_name,
+                dp.phone as delivery_person_phone
+         FROM service_requests sr
+         LEFT JOIN customers c ON sr.customer_id = c.id
+         LEFT JOIN shops s ON sr.shop_id = s.id
+         LEFT JOIN delivery_personnel dp ON sr.delivery_person_id = dp.id
+         WHERE sr.id = ? and sr.delivery_person_id = ?`,
+        [id, deliveryPersonId]
+      );
+      
+      if (!request) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Service request not found'
+          }
+        });
+      }
+      
+      // Get items
+      const items = await Database.query(
+        'SELECT * FROM service_items WHERE request_id = ?',
+        [id]
+      );
+      
+      // Get media with signed URLs
+      const media = await Database.query(
+        'SELECT * FROM media WHERE request_id = ?',
+        [id]
+      );
+      
+      for (const m of media) {
+        m.url = await S3Service.generatePresignedDownloadUrl(m.s3_key);
+      }
+      
+      // Generate signed URL for quote voice note if exists
+      if (request.quote_voice_s3_key) {
+        request.quote_voice_url = await S3Service.generatePresignedDownloadUrl(
+          request.quote_voice_s3_key
+        );
+      }
+      
+      res.json({
+        request,
+        items,
+        media
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
     // Mark pickup
     static async markPickup(req, res, next) {
         try {

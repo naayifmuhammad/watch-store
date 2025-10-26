@@ -2,13 +2,15 @@ services:
   localstack:
     image: localstack/localstack:latest
     ports:
-      - "4566:4566"  # LocalStack gateway
-      - "4510-4559:4510-4559"  # External services port range
+      - "4566:4566"
+      - "4510-4559:4510-4559"
     environment:
-    - SERVICES=s3
-    - DEBUG=1
-    - DATA_DIR=/tmp/localstack_data
-    - DOCKER_HOST=unix:///var/run/docker.sock
+      - SERVICES=s3
+      - DEBUG=1
+      - PERSISTENCE=1
+      - LOCALSTACK_PERSISTENCE=1
+      - DATA_DIR=/var/lib/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
-    - "./localstack_data:/tmp/localstack_data"
-    - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./localstack_data:/var/lib/localstack/data"
+      - "/var/run/docker.sock:/var/run/docker.sock"

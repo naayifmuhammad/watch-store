@@ -8,7 +8,7 @@
     "dev": "nodemon src/app.js",
     "migrate": "flyway -configFiles=\"./flyway.conf\" migrate",
     "localstack:setup": "node src/scripts/setup-localstack-s3.js",
-    "dev:full": "docker-compose up localstack && npm run dev",
+    "dev:full": "docker-compose up localstack -d && node src/scripts/setup-localstack-s3.js && npm run dev",
     "test": "jest --coverage"
   },
   "keywords": ["watch", "repair", "delivery"],
