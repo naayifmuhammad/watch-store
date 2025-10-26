@@ -302,18 +302,33 @@ static async assignDelivery(req, res, next) {
       };
     }
 
-    // Atomic update: assign delivery person and mark as SCHEDULED
-    await Database.update(
-      'service_requests',
-      {
-        delivery_person_id,
-        status: SERVICE_REQUEST_STATUS.SCHEDULED,
-        updated_at: new Date()
-      },
-      'id = ?',
-      [id],
-      connection
-    );
+    // Atomic update: assign delivery person and mark as SCHEDULED/OUTFORDELIVERY
+    if (request.status === SERVICE_REQUEST_STATUS.ACCEPTED) {
+      await Database.update(
+        'service_requests',
+        {
+          delivery_person_id,
+          status: SERVICE_REQUEST_STATUS.SCHEDULED,
+          updated_at: new Date()
+        },
+        'id = ?',
+        [id],
+        connection
+      );
+    }
+    else if (request.status === SERVICE_REQUEST_STATUS.PAYMENT_RECEIVED) {
+      await Database.update(
+        'service_requests',
+        {
+          delivery_person_id,
+          status: SERVICE_REQUEST_STATUS.OUT_FOR_DELIVERY,
+          updated_at: new Date()
+        },
+        'id = ?',
+        [id],
+        connection
+      );
+    }
 
     await connection.commit();
 
