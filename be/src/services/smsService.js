@@ -1,5 +1,6 @@
 const logger = require('../middlewares/logger');
 const config = require('../config/env');
+const twilio = require('twilio');
 
 class SMSService {
   constructor() {
@@ -10,6 +11,8 @@ class SMSService {
     const providerName = config.sms.provider;
     
     switch (providerName) {
+      case 'twilio':
+        return new TwilioWhatsAppProvider();
       case 'dev':
         return new DevSMSProvider();
       default:
@@ -29,6 +32,63 @@ class SMSService {
     }
     
     return await this.provider.send(phone, message);
+  }
+}
+
+// Twilio WhatsApp Provider
+class TwilioWhatsAppProvider {
+  constructor() {
+    this.client = twilio(
+      config.sms.twilioAccountSid,
+      config.sms.twilioAuthToken
+    );
+    this.fromNumber = config.sms.twilioWhatsAppNumber; // e.g., 'whatsapp:+14155238886'
+  }
+
+  async send(phone, message) {
+    try {
+      // Format phone number for WhatsApp (must include country code)
+      const formattedPhone = this.formatPhoneNumber(phone);
+      
+      const result = await this.client.messages.create({
+        body: message,
+        from: this.fromNumber,
+        to: formattedPhone
+      });
+
+      logger.info(`[TWILIO WhatsApp] Message sent to: ${formattedPhone}`);
+      logger.info(`[TWILIO WhatsApp] SID: ${result.sid}`);
+      
+      return {
+        sent: true,
+        provider: 'twilio_whatsapp',
+        messageId: result.sid,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      logger.error(`[TWILIO WhatsApp] Error sending message: ${error.message}`);
+      throw new Error(`Failed to send WhatsApp message: ${error.message}`);
+    }
+  }
+
+  formatPhoneNumber(phone) {
+    // Remove any spaces, dashes, or special characters
+    let cleaned = phone.replace(/[\s\-\(\)]/g, '');
+    
+    // Add + if not present
+    if (!cleaned.startsWith('+')) {
+      // For Indian numbers (10 digits), add +91
+      if (cleaned.length === 10) {
+        cleaned = '+91' + cleaned;
+      } else if (!cleaned.startsWith('91') && cleaned.length === 12) {
+        cleaned = '+' + cleaned;
+      } else {
+        cleaned = '+' + cleaned;
+      }
+    }
+    
+    // Add whatsapp: prefix for Twilio
+    return `whatsapp:${cleaned}`;
   }
 }
 

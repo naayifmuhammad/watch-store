@@ -40,7 +40,11 @@ module.exports = {
     provider: process.env.SMS_PROVIDER || 'dev',
     apiKey: process.env.SMS_API_KEY,
     apiSecret: process.env.SMS_API_SECRET,
-    fromNumber: process.env.SMS_FROM_NUMBER
+    fromNumber: process.env.SMS_FROM_NUMBER,
+    // Twilio
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
+    twilioWhatsAppNumber: process.env.TWILIO_WHATSAPP_NUMBER
   },
   
   // Feature Flags
