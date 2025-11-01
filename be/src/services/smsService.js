@@ -21,7 +21,7 @@ class SMSService {
   }
   
   async sendOTP(phone, code) {
-    const message = `Your OTP for Watch Store is: ${code}. Valid for ${config.otp.ttlMinutes} minutes.`;
+    const message = `Your OTP for Star watch house login is: ${code}. Valid for ${config.otp.ttlMinutes} minutes.`;
     return await this.provider.send(phone, message);
   }
   
@@ -42,7 +42,7 @@ class TwilioWhatsAppProvider {
       config.sms.twilioAccountSid,
       config.sms.twilioAuthToken
     );
-    this.fromNumber = config.sms.twilioWhatsAppNumber; // e.g., 'whatsapp:+14155238886'
+    this.fromNumber = config.sms.twilioWhatsAppNumber;
   }
 
   async send(phone, message) {
@@ -51,8 +51,8 @@ class TwilioWhatsAppProvider {
       const formattedPhone = this.formatPhoneNumber(phone);
       
       const result = await this.client.messages.create({
-        body: message,
         from: this.fromNumber,
+        body: message,
         to: formattedPhone
       });
 
